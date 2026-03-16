@@ -1,0 +1,9 @@
+[manifest]
+version = "1.0.0"
+priority = 1
+
+[[patches]]
+[patches.copy]
+target = "functions/button_callbacks.lua"
+position = "append"
+sources = ["screenshot_inject.lua"]
