@@ -173,7 +173,7 @@ function GuessTile({ label, correct, icon }: { label: string; correct: boolean; 
 
 function GuessRow({ guess }: { guess: Guess }) {
   return (
-    <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+    <div className="guess-row" style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
       <GuessTile label={`Ante ${guess.ante}`} correct={guess.fields.ante} />
       <GuessTile label={guess.stake} correct={guess.fields.stake} icon={STAKE_ICONS[guess.stake]} />
       <GuessTile label={guess.deck} correct={guess.fields.deck} icon={DECK_ICONS[guess.deck]} />
@@ -186,7 +186,7 @@ function AnswerRow({ answer }: { answer: { ante: number; stake: string; deck: st
   const bg = "rgba(0,0,0,0.45)";
   const color = "rgba(255,255,255,0.85)";
   return (
-    <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+    <div className="guess-row" style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
       <Tile label={`Ante ${answer.ante}`} bg={bg} color={color} />
       <Tile label={answer.stake} bg={bg} color={color} icon={STAKE_ICONS[answer.stake]} />
       <Tile label={answer.deck} bg={bg} color={color} icon={DECK_ICONS[answer.deck]} />
@@ -204,7 +204,6 @@ export default function App() {
   const [stake, setStake] = useState("White");
   const [deck, setDeck] = useState("Normal");
   const [blind, setBlind] = useState("Small Blind");
-  const [imgLoaded, setImgLoaded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -278,47 +277,31 @@ export default function App() {
 
   const done = gameState.status !== "playing";
   const antes = Array.from({ length: 12 }, (_, i) => i + 1);
-  const attemptsLeft = MAX_ATTEMPTS - gameState.guesses.length;
 
   return (
-    <div style={{ position: "relative", width: "100vw", height: "100vh", overflow: "hidden", background: "#000" }}>
-      <img
-        src={imageUrl}
-        alt="Blind score"
-        onLoad={() => setImgLoaded(true)}
-        style={{
-          position: "absolute", top: 0, left: 0, width: "100%", height: "100%",
-          objectFit: "cover", opacity: imgLoaded ? 1 : 0, transition: "opacity 0.3s",
-        }}
-      />
-
+    <div style={{ display: "flex", flexDirection: "column", width: "100vw", height: "100vh", overflow: "hidden", background: "#000" }}>
+      {/* Header */}
       <div style={{
-        position: "absolute", top: 0, left: 0, right: 0,
+        flexShrink: 0,
         display: "flex", flexDirection: "column", alignItems: "center",
         gap: 16, padding: "18px 24px 24px",
         background: "linear-gradient(180deg, rgba(23,37,84,0.92) 0%, rgba(23,37,84,0.85) 100%)",
-        backdropFilter: "blur(10px)",
         borderBottom: "3px solid var(--bal-gray)",
       }}>
+
         {/* Title + date + attempts */}
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 20 }}>
-            <h1
-              className="text-shadow-big"
-              style={{
-                color: "var(--bal-yellow)",
-                margin: 0, fontSize: 52, letterSpacing: 6,
-                textTransform: "uppercase",
-              }}
-            >
-              Balatro Guessr
-            </h1>
-            {!done && (
-              <span className="text-shadow" style={{ color: "var(--bal-light-gray)", fontSize: 22 }}>
-                {attemptsLeft}/{MAX_ATTEMPTS}
-              </span>
-            )}
-          </div>
+          <h1
+            className="text-shadow-big"
+            style={{
+              color: "var(--bal-yellow)",
+              margin: 0, fontSize: 52, letterSpacing: 6,
+              textTransform: "uppercase",
+              textAlign: "center",
+            }}
+          >
+            Balatro Guessr
+          </h1>
           {dateKey && (
             <span className="text-shadow" style={{ color: "var(--bal-light-gray-text)", fontSize: 20 }}>
               {dateKey}
@@ -471,6 +454,19 @@ export default function App() {
             {gameState.answer && <AnswerRow answer={gameState.answer} />}
           </div>
         )}
+      </div>
+
+      {/* Background image area - fills remaining space */}
+      <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+        <img
+          src={imageUrl}
+          alt="Blind score"
+          className="blind-image"
+          style={{
+            position: "absolute", top: 0, left: 0, width: "100%", height: "100%",
+            objectFit: "cover", objectPosition: "center",
+          }}
+        />
       </div>
     </div>
   );

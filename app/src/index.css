@@ -83,6 +83,24 @@ body {
   transform: translateY(3px);
 }
 
+/* Mobile */
+@media (max-width: 768px) {
+  .blind-image {
+    transform: scale(2);
+  }
+
+  .title-row {
+    flex-direction: column;
+    align-items: center !important;
+    gap: 4px !important;
+  }
+
+  .guess-row {
+    gap: 6px 8px !important;
+    padding: 4px 0;
+  }
+}
+
 /* Custom dropdown */
 .dropdown {
   position: relative;
