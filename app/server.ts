@@ -46,17 +46,67 @@ function seededRandom(seed: number): number {
   return x - Math.floor(x);
 }
 
+// --- Weighted selection ---
+
+// Precompute weights for each UUID
+const weights: number[] = uuids.map((uuid) => {
+  const info = index[uuid];
+  let w = 1;
+
+  // Unique answers (no also_accept) are slightly more interesting
+  if (info.also_accept.length === 0) w *= 1.2;
+
+  // Ante 2-8 are the sweet spot; 1 is too easy, 9-12 too obvious
+  // Bell curve centered around ante 5 for 2-8, lower for extremes
+  const anteWeights: Record<number, number> = {
+    1: 0.4, 2: 0.8, 3: 1.0, 4: 1.2, 5: 1.3,
+    6: 1.2, 7: 1.0, 8: 0.8, 9: 0.5, 10: 0.4, 11: 0.3, 12: 0.3,
+  };
+  w *= anteWeights[info.ante] ?? 0.5;
+
+  // Plasma is rarer — weight it down to ~1/4 of Normal
+  if (info.deck === "Plasma") w *= 0.33;
+
+  // White+Normal is the most "default" combo, make it less frequent
+  if (info.stake === "White" && info.deck === "Normal") w *= 0.75;
+
+  return w;
+});
+
+// Build cumulative distribution
+const totalWeight = weights.reduce((a, b) => a + b, 0);
+const cdf: number[] = [];
+let cumulative = 0;
+for (const w of weights) {
+  cumulative += w / totalWeight;
+  cdf.push(cumulative);
+}
+
 function getDailyUuid(): { uuid: string; dateKey: string } {
   const dateKey = getPSTDateKey();
   const hash = hashString("balatro-guessr-" + dateKey);
-  const idx = Math.floor(seededRandom(hash) * uuids.length);
-  return { uuid: uuids[idx], dateKey };
+  const r = seededRandom(hash);
+
+  // Binary search the CDF
+  let lo = 0, hi = cdf.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (cdf[mid] < r) lo = mid + 1;
+    else hi = mid;
+  }
+
+  return { uuid: uuids[lo], dateKey };
 }
 
 // --- Express app ---
 
 const app = express();
 app.use(express.json());
+
+// API: get current PST date
+app.get("/api/date", (_req, res) => {
+  res.json({ date: getPSTDateKey() });
+});
 
 // API: get today's puzzle (uuid + image path only, no answer)
 app.get("/api/daily", (_req, res) => {
@@ -68,9 +118,9 @@ app.get("/api/daily", (_req, res) => {
   });
 });
 
-// API: submit guess
-app.post("/api/guess", (req, res) => {
-  const { uuid, dateKey } = getDailyUuid();
+// API: check a guess (returns per-field correctness, no answer reveal)
+app.post("/api/check", (req, res) => {
+  const { uuid } = getDailyUuid();
   const { ante, stake, deck, blind } = req.body;
 
   if (!ante || !stake || !deck || !blind) {
@@ -78,7 +128,6 @@ app.post("/api/guess", (req, res) => {
     return;
   }
 
-  // Verify the guess is for today's puzzle
   if (req.body.uuid && req.body.uuid !== uuid) {
     res.status(400).json({ error: "Stale puzzle" });
     return;
@@ -86,33 +135,33 @@ app.post("/api/guess", (req, res) => {
 
   const answer = index[uuid];
 
-  const isExact =
-    answer.ante === ante &&
-    answer.stake === stake &&
-    answer.deck === deck &&
-    answer.blind === blind;
+  // Check each field against the exact answer AND all also_accept variants
+  const allValid = [answer, ...answer.also_accept.map((id) => index[id]).filter(Boolean)];
 
-  let isAlso = false;
-  if (!isExact) {
-    for (const otherUuid of answer.also_accept) {
-      const other = index[otherUuid];
-      if (
-        other &&
-        other.ante === ante &&
-        other.stake === stake &&
-        other.deck === deck &&
-        other.blind === blind
-      ) {
-        isAlso = true;
-        break;
-      }
-    }
-  }
-
-  const correct = isExact || isAlso;
+  const anteCorrect = allValid.some((a) => a.ante === ante);
+  const stakeCorrect = allValid.some((a) => a.stake === stake);
+  const deckCorrect = allValid.some((a) => a.deck === deck);
+  const blindCorrect = allValid.some((a) => a.blind === blind);
+  const allCorrect = allValid.some(
+    (a) => a.ante === ante && a.stake === stake && a.deck === deck && a.blind === blind
+  );
 
   res.json({
-    correct,
+    correct: allCorrect,
+    fields: {
+      ante: anteCorrect,
+      stake: stakeCorrect,
+      deck: deckCorrect,
+      blind: blindCorrect,
+    },
+  });
+});
+
+// API: get the answer (called after all attempts exhausted or correct guess)
+app.get("/api/answer", (_req, res) => {
+  const { uuid, dateKey } = getDailyUuid();
+  const answer = index[uuid];
+  res.json({
     date: dateKey,
     answer: {
       ante: answer.ante,
