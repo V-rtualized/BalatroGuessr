@@ -138,13 +138,27 @@ app.post("/api/check", (req, res) => {
   // Check each field against the exact answer AND all also_accept variants
   const allValid = [answer, ...answer.also_accept.map((id) => index[id]).filter(Boolean)];
 
-  const anteCorrect = allValid.some((a) => a.ante === ante);
-  const stakeCorrect = allValid.some((a) => a.stake === stake);
-  const deckCorrect = allValid.some((a) => a.deck === deck);
-  const blindCorrect = allValid.some((a) => a.blind === blind);
   const allCorrect = allValid.some(
     (a) => a.ante === ante && a.stake === stake && a.deck === deck && a.blind === blind
   );
+
+  // For per-field hints, use the single best-matching variant to avoid misleading
+  // green tiles when fields are "correct" by mixing across different variants.
+  // If tied, the primary answer (first in allValid) wins.
+  const countMatches = (a: typeof answer) =>
+    (a.ante === ante ? 1 : 0) +
+    (a.stake === stake ? 1 : 0) +
+    (a.deck === deck ? 1 : 0) +
+    (a.blind === blind ? 1 : 0);
+
+  const bestVariant = allValid.reduce((best, a) =>
+    countMatches(a) > countMatches(best) ? a : best
+  );
+
+  const anteCorrect = bestVariant.ante === ante;
+  const stakeCorrect = bestVariant.stake === stake;
+  const deckCorrect = bestVariant.deck === deck;
+  const blindCorrect = bestVariant.blind === blind;
 
   res.json({
     correct: allCorrect,
